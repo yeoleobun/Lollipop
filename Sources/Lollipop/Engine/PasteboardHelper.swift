@@ -5,8 +5,12 @@ import AppKit
 enum PasteboardHelper {
     static func copyTrackLink(videoId: String) {
         guard !videoId.isEmpty else { return }
-        let url = YouTubeMusicConstants.watchURL(videoId: videoId)
+        copyString(YouTubeMusicConstants.watchURL(videoId: videoId))
+    }
+
+    static func copyString(_ text: String) {
+        guard !text.isEmpty else { return }
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(url, forType: .string)
+        NSPasteboard.general.setString(text, forType: .string)
     }
 }

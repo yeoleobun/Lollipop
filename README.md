@@ -1,4 +1,4 @@
-# YoMusic (Lollipop)
+# Lollipop
 
 A native macOS YouTube Music client written in Swift 6 and SwiftUI, designed around Apple Music for macOS and the latest macOS Liquid Glass guidelines, powered by a hidden audio-only embedded player.
 
@@ -6,9 +6,24 @@ A native macOS YouTube Music client written in Swift 6 and SwiftUI, designed aro
 
 [Watch the UI Demo (`docs/demo.mp4`)](docs/demo.mp4)
 
-## Download
+## Install
 
-Download the latest macOS Apple Silicon build from [GitHub Releases](https://github.com/yeoleobun/Lollipop/releases/latest) (`Lollipop-1.0.0-macOS-arm64.dmg`).
+### Homebrew (Recommended)
+
+```bash
+brew tap yeoleobun/tap
+brew install --cask yeoleobun/tap/lollipop
+```
+
+Upgrade anytime with:
+
+```bash
+brew upgrade --cask lollipop
+```
+
+### Direct Download
+
+Download the latest macOS Apple Silicon build from [GitHub Releases](https://github.com/yeoleobun/Lollipop/releases/latest) (`Lollipop-*-macOS-arm64.dmg`).
 
 ## Features
 

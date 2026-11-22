@@ -185,32 +185,11 @@ struct FullScreenPlayerView: View {
     }
 
     private var scrubberSection: some View {
-        VStack(spacing: 6) {
-            PlaybackScrubberView(
-                value: isScrubbing ? scrubTime : state.currentTime,
-                total: max(state.duration, 1),
-                style: .fullScreen,
-                onEditingChanged: { editing, newValue in
-                    isScrubbing = editing
-                    scrubTime = newValue
-                    if !editing {
-                        engine.seek(to: newValue)
-                    }
-                }
-            )
-            .disabled(!state.hasTrack || state.duration <= 0)
-
-            HStack {
-                Text(TimeFormatter.string(from: isScrubbing ? scrubTime : state.currentTime))
-                    .font(.system(size: 11.5).monospacedDigit())
-                    .foregroundStyle(.white.opacity(0.65))
-                Spacer()
-                let remaining = max(0, state.duration - (isScrubbing ? scrubTime : state.currentTime))
-                Text("-\(TimeFormatter.string(from: remaining))")
-                    .font(.system(size: 11.5).monospacedDigit())
-                    .foregroundStyle(.white.opacity(0.65))
-            }
-        }
+        FullScreenScrubberSection(
+            engine: engine,
+            isScrubbing: $isScrubbing,
+            scrubTime: $scrubTime
+        )
     }
 
     private var transportControls: some View {
@@ -270,12 +249,9 @@ struct FullScreenPlayerView: View {
     private var rightInspectorColumn: some View {
         switch selectedTab {
         case .lyrics:
-            PlayerLyricsView(
-                lyrics: engine.lyrics,
-                currentTime: state.currentTime,
-                hasTrack: state.hasTrack,
-                isRefreshing: isRefreshing,
-                onSeek: { engine.seek(to: $0) }
+            FullScreenLyricsContainer(
+                engine: engine,
+                isRefreshing: isRefreshing
             )
             .transition(.opacity)
 
@@ -333,6 +309,85 @@ struct FullScreenPlayerView: View {
         Task {
             await engine.refreshQueueAndLyrics(videoId: vid)
             isRefreshing = false
+        }
+    }
+}
+
+/// Isolated observer for `engine.playbackClock` inside FullScreenPlayerView.
+/// Advances locally ONLY while playing; zero timers when paused or buffering.
+private struct FullScreenScrubberSection: View {
+    let engine: YouTubeMusicEngine
+    @Binding var isScrubbing: Bool
+    @Binding var scrubTime: Double
+
+    var body: some View {
+        let state = engine.playerState
+        let clock = engine.playbackClock
+        if clock.isRunning && !isScrubbing {
+            TimelineView(.periodic(from: .now, by: 0.5)) { context in
+                content(displayTime: clock.currentTime(at: context.date), state: state)
+            }
+        } else {
+            content(displayTime: isScrubbing ? scrubTime : clock.anchorTime, state: state)
+        }
+    }
+
+    private func content(displayTime: Double, state: PlayerState) -> some View {
+        VStack(spacing: 6) {
+            PlaybackScrubberView(
+                value: displayTime,
+                total: max(state.duration, 1),
+                style: .fullScreen,
+                onEditingChanged: { editing, newValue in
+                    isScrubbing = editing
+                    scrubTime = newValue
+                    if !editing {
+                        engine.seek(to: newValue)
+                    }
+                }
+            )
+            .disabled(!state.hasTrack || state.duration <= 0)
+
+            HStack {
+                Text(TimeFormatter.string(from: displayTime))
+                    .font(.system(size: 11.5).monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.65))
+                Spacer()
+                let remaining = max(0, state.duration - displayTime)
+                Text("-\(TimeFormatter.string(from: remaining))")
+                    .font(.system(size: 11.5).monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.65))
+            }
+        }
+    }
+}
+
+/// Isolated observer for `engine.playbackClock` for the synced lyrics wheel.
+private struct FullScreenLyricsContainer: View {
+    let engine: YouTubeMusicEngine
+    let isRefreshing: Bool
+
+    var body: some View {
+        let clock = engine.playbackClock
+        let hasSynced = engine.lyrics?.isSynced == true
+        if clock.isRunning && hasSynced {
+            TimelineView(.periodic(from: .now, by: 0.25)) { context in
+                PlayerLyricsView(
+                    lyrics: engine.lyrics,
+                    currentTime: clock.currentTime(at: context.date),
+                    hasTrack: engine.playerState.hasTrack,
+                    isRefreshing: isRefreshing,
+                    onSeek: { engine.seek(to: $0) }
+                )
+            }
+        } else {
+            PlayerLyricsView(
+                lyrics: engine.lyrics,
+                currentTime: clock.anchorTime,
+                hasTrack: engine.playerState.hasTrack,
+                isRefreshing: isRefreshing,
+                onSeek: { engine.seek(to: $0) }
+            )
         }
     }
 }

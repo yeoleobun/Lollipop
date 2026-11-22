@@ -3,7 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 APP_NAME="Lollipop"
-VERSION="1.0.0"
+VERSION="${VERSION:-1.0.1}"
+SIGN_IDENTITY="${SIGN_IDENTITY:-yeoleobun}"
 APP_BUNDLE="$ROOT_DIR/build/${APP_NAME}.app"
 CONTENTS_DIR="$APP_BUNDLE/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
@@ -66,14 +67,26 @@ cat > "$CONTENTS_DIR/Info.plist" << PLIST
 </plist>
 PLIST
 
-# Ad-hoc sign so macOS Gatekeeper / MediaPlayer Now Playing works smoothly locally
-codesign --force --deep --sign - "$APP_BUNDLE" >/dev/null 2>&1 || true
+# Sign with configured certificate when available (falls back to ad-hoc locally)
+if [[ "$SIGN_IDENTITY" != "-" ]] && security find-identity -v -p codesigning 2>/dev/null | grep -Fq "\"$SIGN_IDENTITY\""; then
+  echo "Signing ${APP_NAME}.app with identity: ${SIGN_IDENTITY}"
+  codesign --force --deep --sign "$SIGN_IDENTITY" "$APP_BUNDLE"
+else
+  echo "Identity '${SIGN_IDENTITY}' not found; ad-hoc signing ${APP_NAME}.app"
+  codesign --force --deep --sign - "$APP_BUNDLE" >/dev/null 2>&1 || true
+fi
 
 echo "Packaged: $APP_BUNDLE"
 
-if [[ "${1:-}" == "--dmg" ]]; then
+if [[ "${1:-}" == "--dmg" || "${1:-}" == "--release" || "${PACKAGE_DMG:-0}" == "1" ]]; then
+  ZIP_PATH="$ROOT_DIR/build/${APP_NAME}-${VERSION}-macOS-arm64.zip"
   DMG_PATH="$ROOT_DIR/build/${APP_NAME}-${VERSION}-macOS-arm64.dmg"
   STAGING_DIR="$ROOT_DIR/build/dmg_staging"
+
+  rm -f "$ZIP_PATH"
+  ditto -c -k --keepParent "$APP_BUNDLE" "$ZIP_PATH"
+  echo "ZIP created: $ZIP_PATH"
+
   rm -rf "$STAGING_DIR" "$DMG_PATH"
   mkdir -p "$STAGING_DIR"
   cp -R "$APP_BUNDLE" "$STAGING_DIR/"
@@ -81,6 +94,9 @@ if [[ "${1:-}" == "--dmg" ]]; then
   hdiutil create -volname "$APP_NAME" -srcfolder "$STAGING_DIR" -ov -format UDZO "$DMG_PATH" >/dev/null
   rm -rf "$STAGING_DIR"
   echo "DMG created: $DMG_PATH"
+
+  (cd "$ROOT_DIR/build" && shasum -a 256 "$(basename "$ZIP_PATH")" "$(basename "$DMG_PATH")" > SHA256SUMS.txt)
+  echo "Checksums: $ROOT_DIR/build/SHA256SUMS.txt"
 fi
 
 echo "Run with: open \"$APP_BUNDLE\""

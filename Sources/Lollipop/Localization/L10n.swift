@@ -169,4 +169,23 @@ enum L10n {
     static var playlistSection: String { t("Playlist", "播放列表") }
     static var playlistTitlePlaceholder: String { t("Playlist Title", "播放列表标题") }
     static var playlistDescPlaceholder: String { t("Description (Optional)", "简介（可选）") }
+
+    // MARK: - Updates
+    static var checkForUpdates: String { t("Check for Updates…", "检查更新…") }
+    static var updateAvailableTitle: String { t("A New Version of Lollipop Is Available", "发现新版本 Lollipop") }
+    static var upToDateTitle: String { t("You're Up to Date!", "已是最新版本") }
+    static func upToDateMessage(_ version: String) -> String {
+        t("Lollipop \(version) is currently the newest version available.", "当前 Lollipop \(version) 已是最新版本。")
+    }
+    static func updateVersionSummary(current: String, latest: String) -> String {
+        t("Version \(latest) is available (you have \(current)).", "新版本 v\(latest) 已发布（当前版本 v\(current)）。")
+    }
+    static func updateBadge(_ version: String) -> String {
+        t("Update v\(version)", "新版本 v\(version)")
+    }
+    static var updateCheckFailedTitle: String { t("Unable to Check for Updates", "无法检查更新") }
+    static var downloadUpdate: String { t("Download Update", "前往下载") }
+    static var later: String { t("Later", "稍后") }
+    static var copy: String { t("Copy", "拷贝") }
+    static var copied: String { t("Copied", "已拷贝") }
 }

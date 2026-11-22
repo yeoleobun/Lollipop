@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MainView: View {
     @Bindable var engine: YouTubeMusicEngine
+    @Bindable var updateChecker: UpdateChecker
     @Binding var showInspector: Bool
     @Binding var inspectorTab: InspectorTab
 
@@ -14,6 +15,7 @@ struct MainView: View {
         NavigationSplitView {
             SidebarView(
                 engine: engine,
+                updateChecker: updateChecker,
                 selection: $selection,
                 playlistToDelete: $playlistToDelete,
                 onSelect: select
@@ -68,6 +70,9 @@ struct MainView: View {
         }
         .sheet(isPresented: $engine.showEmbeddedPlayerSheet) {
             EmbeddedPlayerSheet(engine: engine)
+        }
+        .sheet(isPresented: $updateChecker.showUpdateSheet) {
+            UpdateSheet(updater: updateChecker)
         }
         .sheet(item: $engine.playlistEditorMode) { mode in
             PlaylistEditorSheet(mode: mode, engine: engine) { browseId in

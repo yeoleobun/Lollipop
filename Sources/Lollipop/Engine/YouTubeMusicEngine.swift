@@ -23,6 +23,22 @@ private final class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
     }
 }
 
+/// Anchor-based playback clock driven purely by discrete media events (play/pause/seek/buffering).
+/// Computes current playback time locally in Swift without JS polling.
+struct PlaybackClockAnchor: Equatable, Sendable {
+    var anchorTime: Double = 0
+    var anchorDate: Date = .distantPast
+    var duration: Double = 0
+    var isRunning: Bool = false
+
+    func currentTime(at now: Date) -> Double {
+        guard isRunning else { return anchorTime }
+        let elapsed = max(0, now.timeIntervalSince(anchorDate))
+        let raw = anchorTime + elapsed
+        return duration > 0 ? min(raw, duration) : raw
+    }
+}
+
 @MainActor
 @Observable
 final class YouTubeMusicEngine: NSObject, WKNavigationDelegate, WKUIDelegate {
@@ -36,6 +52,9 @@ final class YouTubeMusicEngine: NSObject, WKNavigationDelegate, WKUIDelegate {
 
     // MARK: - Playback & Session State
     var playerState = PlayerState()
+    /// Event-driven playback clock anchor so scrubbers & synced lyrics advance locally
+    /// while playing and do zero work when paused or buffering.
+    var playbackClock = PlaybackClockAnchor()
     var isEngineLoaded = false
     var showEmbeddedPlayerSheet = false
     var showSignInSheet = false
@@ -201,7 +220,8 @@ final class YouTubeMusicEngine: NSObject, WKNavigationDelegate, WKUIDelegate {
         next.album = dict[PayloadKey.album] as? String ?? ""
         next.artworkURL = dict[PayloadKey.artworkURL] as? String ?? ""
         next.isPlaying = dict[PayloadKey.isPlaying] as? Bool ?? false
-        next.currentTime = dict[PayloadKey.currentTime] as? Double ?? 0
+        let isBuffering = dict[PayloadKey.isBuffering] as? Bool ?? false
+        let incomingTime = dict[PayloadKey.currentTime] as? Double ?? 0
         next.duration = dict[PayloadKey.duration] as? Double ?? 0
         next.volume = dict[PayloadKey.volume] as? Double ?? 100
         next.isMuted = dict[PayloadKey.isMuted] as? Bool ?? false
@@ -227,6 +247,19 @@ final class YouTubeMusicEngine: NSObject, WKNavigationDelegate, WKUIDelegate {
         }
         if let ls = dict[PayloadKey.likeStatus] as? String, let status = LikeStatus(rawValue: ls) {
             next.likeStatus = status
+        }
+
+        let nextClock = PlaybackClockAnchor(
+            anchorTime: incomingTime,
+            anchorDate: Date(),
+            duration: next.duration,
+            isRunning: next.isPlaying && !isBuffering
+        )
+        if nextClock.isRunning != playbackClock.isRunning
+            || nextClock.duration != playbackClock.duration
+            || abs(nextClock.anchorTime - playbackClock.currentTime(at: nextClock.anchorDate)) >= 0.45
+            || next.videoId != playerState.videoId {
+            playbackClock = nextClock
         }
 
         if next != playerState {
@@ -283,7 +316,12 @@ final class YouTubeMusicEngine: NSObject, WKNavigationDelegate, WKUIDelegate {
     }
 
     func seek(to seconds: Double) {
-        playerState.currentTime = seconds
+        playbackClock = PlaybackClockAnchor(
+            anchorTime: seconds,
+            anchorDate: Date(),
+            duration: playerState.duration,
+            isRunning: playbackClock.isRunning
+        )
         evalVoid(Bridge.seek(seconds))
     }
 

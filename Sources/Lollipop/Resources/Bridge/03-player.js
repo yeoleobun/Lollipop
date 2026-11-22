@@ -121,6 +121,7 @@
       album,
       artworkURL,
       isPlaying,
+      isBuffering,
       currentTime,
       duration,
       volume,
@@ -137,25 +138,136 @@
   }
 
   let lastReadyNotified = false;
-  let tickerStarted = false;
+  let listenersStarted = false;
+  let isBuffering = false;
+  let attachedVideo = null;
+  let barObserver = null;
+  let bootstrapObserver = null;
+  let emitTimer = null;
+  let lastPostedSignature = '';
 
-  function tickState() {
+  const VIDEO_EVENTS = [
+    'play',
+    'pause',
+    'playing',
+    'waiting',
+    'stalled',
+    'canplay',
+    'seeking',
+    'seeked',
+    'durationchange',
+    'volumechange',
+    'ratechange',
+    'loadedmetadata',
+    'ended'
+  ];
+
+  function emitState(force) {
     injectAudioOnlyCSS();
     const state = readPlayerState();
-    post('playerState', state);
+    const sig = JSON.stringify([
+      state.videoId,
+      state.title,
+      state.artist,
+      state.album,
+      state.artworkURL,
+      state.isPlaying,
+      state.isBuffering,
+      Math.round(state.currentTime * 4),
+      Math.round(state.duration),
+      state.volume,
+      state.isMuted,
+      state.repeatMode,
+      state.isShuffled,
+      state.likeStatus,
+      state.isSignedIn,
+      state.artistBrowseId,
+      state.albumBrowseId,
+      state.isReady
+    ]);
+    if (force || sig !== lastPostedSignature) {
+      lastPostedSignature = sig;
+      post('playerState', state);
+    }
     if (state.isReady && !lastReadyNotified) {
       lastReadyNotified = true;
       post('engineReady', { isSignedIn: state.isSignedIn });
     }
   }
 
+  function scheduleEmit(delayMs) {
+    if (emitTimer) clearTimeout(emitTimer);
+    emitTimer = setTimeout(() => {
+      emitTimer = null;
+      emitState(false);
+    }, delayMs);
+  }
+
+  function handleVideoEvent(ev) {
+    if (ev.type === 'waiting' || ev.type === 'stalled') {
+      isBuffering = true;
+    } else if (ev.type === 'playing' || ev.type === 'canplay' || ev.type === 'seeked' || ev.type === 'pause' || ev.type === 'ended') {
+      isBuffering = false;
+    }
+    emitState(true);
+  }
+
+  function attachMediaListeners() {
+    const video = getVideoEl();
+    if (video && video !== attachedVideo) {
+      if (attachedVideo) {
+        VIDEO_EVENTS.forEach(t => attachedVideo.removeEventListener(t, handleVideoEvent));
+      }
+      attachedVideo = video;
+      VIDEO_EVENTS.forEach(t => video.addEventListener(t, handleVideoEvent));
+      emitState(true);
+    }
+
+    const bar = document.querySelector(SELECTORS.PLAYER_BAR);
+    if (bar && !barObserver) {
+      barObserver = new MutationObserver(() => {
+        attachMediaListeners();
+        scheduleEmit(80);
+      });
+      barObserver.observe(bar, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['aria-pressed', 'aria-label', 'title', 'src', 'href']
+      });
+      emitState(true);
+    }
+
+    if (attachedVideo && barObserver && bootstrapObserver) {
+      bootstrapObserver.disconnect();
+      bootstrapObserver = null;
+    }
+  }
+
   function startStateTicker() {
-    if (tickerStarted) return;
-    tickerStarted = true;
-    setInterval(tickState, CONSTANTS.POLL_INTERVAL_MS);
+    if (listenersStarted) return;
+    listenersStarted = true;
+
+    attachMediaListeners();
+    emitState(true);
+
+    if (!attachedVideo || !barObserver) {
+      bootstrapObserver = new MutationObserver(() => {
+        attachMediaListeners();
+      });
+      const root = document.body || document.documentElement;
+      if (root) {
+        bootstrapObserver.observe(root, { childList: true, subtree: true });
+      }
+    }
+
     window.addEventListener('load', () => {
       injectAudioOnlyCSS();
-      setTimeout(tickState, CONSTANTS.LOAD_TICK_DELAY_MS);
+      attachMediaListeners();
+      setTimeout(() => {
+        attachMediaListeners();
+        emitState(true);
+      }, CONSTANTS.LOAD_TICK_DELAY_MS);
     });
   }
 

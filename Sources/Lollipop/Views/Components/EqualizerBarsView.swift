@@ -1,34 +1,14 @@
 import SwiftUI
 
-/// Animated equalizer indicator like Apple Music's now-playing row animation.
+/// Native macOS SF Symbol waveform indicator for the currently playing track row.
 struct EqualizerBarsView: View {
     let isPlaying: Bool
-    @ViewState private var phase: Bool = false
 
     var body: some View {
-        HStack(alignment: .bottom, spacing: 2) {
-            bar(minH: 4, maxH: 13, duration: 0.45)
-            bar(minH: 6, maxH: 15, duration: 0.35)
-            bar(minH: 3, maxH: 11, duration: 0.52)
-        }
-        .frame(width: 14, height: 15, alignment: .bottom)
-        .onAppear {
-            if isPlaying { phase = true }
-        }
-        .onChange(of: isPlaying) { _, newValue in
-            phase = newValue
-        }
-    }
-
-    private func bar(minH: CGFloat, maxH: CGFloat, duration: Double) -> some View {
-        RoundedRectangle(cornerRadius: 1)
-            .fill(AppColors.accent)
-            .frame(width: 3, height: isPlaying ? (phase ? maxH : minH) : 4)
-            .animation(
-                isPlaying
-                    ? .easeInOut(duration: duration).repeatForever(autoreverses: true)
-                    : AppAnimations.standard,
-                value: phase
-            )
+        Image(systemName: "waveform")
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(AppColors.accent)
+            .symbolEffect(.variableColor.iterative, isActive: isPlaying)
+            .frame(width: 16, height: 16)
     }
 }

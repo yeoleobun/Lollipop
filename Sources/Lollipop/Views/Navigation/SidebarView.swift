@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SidebarView: View {
     let engine: YouTubeMusicEngine
+    let updateChecker: UpdateChecker
     @Binding var selection: SidebarDestination
     @Binding var playlistToDelete: UserPlaylist?
     let onSelect: (SidebarDestination) -> Void
@@ -71,9 +72,33 @@ struct SidebarView: View {
         }
         .listStyle(.sidebar)
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            accountFooter
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
+            VStack(spacing: 6) {
+                if let update = updateChecker.availableUpdate {
+                    Button {
+                        updateChecker.showUpdateSheet = true
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "arrow.down.circle.fill")
+                                .font(.system(size: 12.5, weight: .semibold))
+                            Text(L10n.updateBadge(update.version))
+                                .font(.system(size: 12, weight: .semibold))
+                            Spacer()
+                        }
+                        .foregroundStyle(AppColors.accent)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(AppColors.accent.opacity(0.10))
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                accountFooter
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
         }
         .navigationSplitViewColumnWidth(
             min: AppMetrics.sidebarMinWidth,

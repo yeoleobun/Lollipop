@@ -149,19 +149,11 @@ struct NowPlayingBar: View {
         }
         .frame(minWidth: 320, maxWidth: 385)
         .overlay(alignment: .bottom) {
-            PlaybackScrubberView(
-                value: isScrubbing ? scrubTime : state.currentTime,
-                total: max(state.duration, 1),
-                style: .compactBar,
-                onEditingChanged: { editing, newValue in
-                    isScrubbing = editing
-                    scrubTime = newValue
-                    if !editing {
-                        engine.seek(to: newValue)
-                    }
-                }
+            CompactBarScrubber(
+                engine: engine,
+                isScrubbing: $isScrubbing,
+                scrubTime: $scrubTime
             )
-            .disabled(!state.hasTrack || state.duration <= 0)
             .offset(y: 11.5)
         }
         .contextMenu {
@@ -214,5 +206,41 @@ struct NowPlayingBar: View {
                 showInspector = true
             }
         }
+    }
+}
+
+/// Isolated observer for `engine.playbackClock`.
+/// Advances locally via `TimelineView` ONLY while playing; does zero work when paused or buffering.
+private struct CompactBarScrubber: View {
+    let engine: YouTubeMusicEngine
+    @Binding var isScrubbing: Bool
+    @Binding var scrubTime: Double
+
+    var body: some View {
+        let state = engine.playerState
+        let clock = engine.playbackClock
+        if clock.isRunning && !isScrubbing {
+            TimelineView(.periodic(from: .now, by: 0.5)) { context in
+                scrubber(value: clock.currentTime(at: context.date), state: state)
+            }
+        } else {
+            scrubber(value: isScrubbing ? scrubTime : clock.anchorTime, state: state)
+        }
+    }
+
+    private func scrubber(value: Double, state: PlayerState) -> some View {
+        PlaybackScrubberView(
+            value: value,
+            total: max(state.duration, 1),
+            style: .compactBar,
+            onEditingChanged: { editing, newValue in
+                isScrubbing = editing
+                scrubTime = newValue
+                if !editing {
+                    engine.seek(to: newValue)
+                }
+            }
+        )
+        .disabled(!state.hasTrack || state.duration <= 0)
     }
 }

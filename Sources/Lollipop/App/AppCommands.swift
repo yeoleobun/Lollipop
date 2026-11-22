@@ -2,10 +2,18 @@ import SwiftUI
 
 struct AppCommands: Commands {
     let engine: YouTubeMusicEngine
+    let updateChecker: UpdateChecker
     @Binding var showInspector: Bool
     @Binding var inspectorTab: InspectorTab
 
     var body: some Commands {
+        CommandGroup(after: .appInfo) {
+            Button(L10n.checkForUpdates) {
+                updateChecker.checkForUpdatesManually()
+            }
+            .disabled(updateChecker.isChecking)
+        }
+
         CommandMenu(L10n.controlsMenu) {
             Button(engine.playerState.isPlaying ? L10n.pause : L10n.play) {
                 engine.togglePlayPause()

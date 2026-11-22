@@ -29,6 +29,7 @@ struct LollipopApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     @ViewState private var engine = YouTubeMusicEngine()
+    @ViewState private var updateChecker = UpdateChecker()
     @ViewState private var showInspector = false
     @ViewState private var inspectorTab: InspectorTab = .queue
 
@@ -36,6 +37,7 @@ struct LollipopApp: App {
         WindowGroup(AppConstants.appName) {
             MainView(
                 engine: engine,
+                updateChecker: updateChecker,
                 showInspector: $showInspector,
                 inspectorTab: $inspectorTab
             )
@@ -43,6 +45,9 @@ struct LollipopApp: App {
                 minWidth: AppMetrics.mainWindowMinWidth,
                 minHeight: AppMetrics.mainWindowMinHeight
             )
+            .task {
+                updateChecker.checkOnLaunchIfNeeded()
+            }
         }
         .defaultSize(
             width: AppMetrics.mainWindowDefaultWidth,
@@ -52,6 +57,7 @@ struct LollipopApp: App {
         .commands {
             AppCommands(
                 engine: engine,
+                updateChecker: updateChecker,
                 showInspector: $showInspector,
                 inspectorTab: $inspectorTab
             )

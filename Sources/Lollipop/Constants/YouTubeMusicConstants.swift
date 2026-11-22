@@ -109,6 +109,7 @@ enum YouTubeMusicConstants {
             static let album = "album"
             static let artworkURL = "artworkURL"
             static let isPlaying = "isPlaying"
+            static let isBuffering = "isBuffering"
             static let currentTime = "currentTime"
             static let duration = "duration"
             static let volume = "volume"
