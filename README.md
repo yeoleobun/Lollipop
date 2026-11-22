@@ -2,6 +2,10 @@
 
 A native macOS YouTube Music client written in Swift 6 and SwiftUI, designed around Apple Music for macOS and the latest macOS Liquid Glass guidelines, powered by a hidden audio-only embedded player.
 
+![Lollipop Main Window](docs/images/main.png)
+
+![Lollipop Full-Screen Now Playing & Synced Lyrics](docs/images/now-playing.png)
+
 ## Demo
 
 [Watch the UI Demo (`docs/demo.mp4`)](docs/demo.mp4)
