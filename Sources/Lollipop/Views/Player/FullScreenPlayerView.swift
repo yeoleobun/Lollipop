@@ -45,6 +45,7 @@ struct FullScreenPlayerView: View {
 
             bottomTogglePill
         }
+        .ignoresSafeArea()
         .onAppear {
             if !state.videoId.isEmpty && (engine.queue.isEmpty || engine.lyrics == nil) {
                 refreshNow()
@@ -72,8 +73,7 @@ struct FullScreenPlayerView: View {
             VolumeControlView(engine: engine, style: .inlinePill)
                 .padding(.trailing, 16)
         }
-        .padding(.top, 10)
-        .ignoresSafeArea(.container, edges: .top)
+        .padding(.top, 12)
     }
 
     // MARK: - Left Column (Artwork, Mini Metadata Card, Scrubber, Transport)

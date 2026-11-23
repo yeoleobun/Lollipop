@@ -20,24 +20,30 @@ struct MainView: View {
                 playlistToDelete: $playlistToDelete,
                 onSelect: select
             )
+            .toolbar(removing: .sidebarToggle)
         } detail: {
-            NavigationStack(path: $navigationPath) {
+            ZStack {
                 detailRootView
                     .id(selection.id)
                     .transition(.opacity.combined(with: .offset(y: 6)))
-                    .navigationDestination(for: AppRoute.self) { appRoute in
-                        routeDestinationView(for: appRoute)
-                    }
+                    .opacity(navigationPath.isEmpty ? 1 : 0)
+                    .allowsHitTesting(navigationPath.isEmpty)
+                    .accessibilityHidden(!navigationPath.isEmpty)
+
+                if let currentRoute = navigationPath.last {
+                    routeDestinationView(for: currentRoute)
+                        .id(currentRoute)
+                        .transition(.opacity.combined(with: .offset(x: 12)))
+                        .safeAreaInset(edge: .top, spacing: 0) {
+                            detailBackBar
+                        }
+                }
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                nowPlayingBar
             }
             .animation(AppAnimations.standard, value: selection)
-            .overlay(alignment: .bottom) {
-                NowPlayingBar(
-                    engine: engine,
-                    showInspector: $showInspector,
-                    inspectorTab: $inspectorTab,
-                    onOpenRoute: openRoute
-                )
-            }
+            .animation(AppAnimations.routeSpring, value: navigationPath)
         }
         .overlay {
             if showInspector {
@@ -51,7 +57,8 @@ struct MainView: View {
                     },
                     onOpenRoute: openRoute
                 )
-                .transition(.opacity.combined(with: .scale(scale: 0.985)))
+                .ignoresSafeArea()
+                .transition(.opacity)
             }
         }
         .animation(AppAnimations.overlaySpring, value: showInspector)
@@ -130,6 +137,13 @@ struct MainView: View {
         }
     }
 
+    private func navigateBack() {
+        guard !navigationPath.isEmpty else { return }
+        withAnimation(AppAnimations.routeSpring) {
+            _ = navigationPath.removeLast()
+        }
+    }
+
     private func select(_ destination: SidebarDestination) {
         withAnimation(AppAnimations.sidebarSpring) {
             navigationPath.removeAll()
@@ -139,6 +153,43 @@ struct MainView: View {
     }
 
     // MARK: - Detail Views
+
+    private var detailBackBar: some View {
+        HStack(spacing: 8) {
+            Button {
+                navigateBack()
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: AppSymbols.chevronLeft)
+                        .font(.system(size: 12, weight: .semibold))
+                    Text(L10n.back)
+                        .font(.system(size: 13, weight: .medium))
+                }
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .liquidGlassCapsule(interactive: true)
+                .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut("[", modifiers: .command)
+            .help(L10n.back)
+
+            Spacer()
+        }
+        .padding(.horizontal, AppMetrics.pageHorizontalPadding)
+        .padding(.top, 12)
+        .padding(.bottom, 0)
+    }
+
+    private var nowPlayingBar: some View {
+        NowPlayingBar(
+            engine: engine,
+            showInspector: $showInspector,
+            inspectorTab: $inspectorTab,
+            onOpenRoute: openRoute
+        )
+    }
 
     @ViewBuilder
     private func routeDestinationView(for appRoute: AppRoute) -> some View {
@@ -163,9 +214,7 @@ struct MainView: View {
                     autoPlayVideoId: route.autoPlayVideoId,
                     onOpenRoute: openRoute,
                     onDeletedPlaylist: {
-                        if !navigationPath.isEmpty {
-                            navigationPath.removeLast()
-                        }
+                        navigateBack()
                     }
                 )
             }

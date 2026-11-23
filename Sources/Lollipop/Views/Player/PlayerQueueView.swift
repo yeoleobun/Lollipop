@@ -90,10 +90,12 @@ struct PlayerQueueView: View {
 
             if isCurrent {
                 EqualizerBarsView(isPlaying: isPlaying)
+                    .frame(width: 42, alignment: .center)
             } else if let dur = track.durationText, !dur.isEmpty {
                 Text(dur)
                     .font(AppTypography.trackDuration)
                     .foregroundStyle(.white.opacity(0.55))
+                    .frame(width: 42, alignment: .center)
             }
         }
         .padding(.horizontal, 12)

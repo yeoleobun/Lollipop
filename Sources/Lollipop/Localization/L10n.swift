@@ -78,6 +78,7 @@ enum L10n {
     static var like: String { t("Like", "喜欢") }
     static var unlike: String { t("Unlike", "取消喜欢") }
     static var refresh: String { t("Refresh", "刷新") }
+    static var back: String { t("Back", "返回") }
     static var goToArtist: String { t("Go to Artist", "前往艺人") }
     static var goToAlbum: String { t("Go to Album", "前往专辑") }
     static var loadingArtist: String { t("Loading artist…", "正在加载艺人…") }
