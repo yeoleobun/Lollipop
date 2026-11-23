@@ -188,9 +188,9 @@ enum MusicItemNavigator {
             return
         }
 
-        // Song card: open its album first when available so playback doesn't race the WebView,
-        // and auto-play the selected track once the album finishes loading.
-        if let vid = item.videoId {
+        // Song card: open its album when available without auto-playing;
+        // the card's play button handles direct playback.
+        if item.videoId != nil {
             let fallbackAlbumBrowseId = item.browseId.flatMap {
                 YouTubeMusicConstants.isAlbumBrowseId($0) ? $0 : nil
             }
@@ -199,9 +199,7 @@ enum MusicItemNavigator {
                     NavigationRoute(
                         browseId: albumId,
                         title: item.albumTitle ?? item.title,
-                        artworkURL: item.artworkURL,
-                        autoPlay: true,
-                        autoPlayVideoId: vid
+                        artworkURL: item.artworkURL
                     )
                 )
             } else {
@@ -215,8 +213,7 @@ enum MusicItemNavigator {
                 NavigationRoute(
                     browseId: targetBrowseId,
                     title: item.albumTitle ?? item.title,
-                    artworkURL: item.artworkURL,
-                    autoPlay: true
+                    artworkURL: item.artworkURL
                 )
             )
         }

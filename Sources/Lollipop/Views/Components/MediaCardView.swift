@@ -27,6 +27,8 @@ struct MediaCardView: View {
                     isCircular: isArtist,
                     cornerRadius: AppMetrics.cardCornerRadius
                 )
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onTap)
 
                 if isHovered && (item.videoId != nil || item.playlistId != nil) {
                     Button(action: onPlay) {
@@ -48,8 +50,6 @@ struct MediaCardView: View {
                     .transition(.opacity.combined(with: .scale(scale: 0.85)))
                 }
             }
-            .contentShape(Rectangle())
-            .onTapGesture(perform: onTap)
 
             VStack(alignment: isArtist ? .center : .leading, spacing: 2) {
                 HStack(spacing: 4) {
