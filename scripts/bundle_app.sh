@@ -67,14 +67,13 @@ cat > "$CONTENTS_DIR/Info.plist" << PLIST
 </plist>
 PLIST
 
-# Sign with configured certificate when available (falls back to ad-hoc locally)
-if [[ "$SIGN_IDENTITY" != "-" ]] && security find-identity -v -p codesigning 2>/dev/null | grep -Fq "\"$SIGN_IDENTITY\""; then
-  echo "Signing ${APP_NAME}.app with identity: ${SIGN_IDENTITY}"
-  codesign --force --deep --sign "$SIGN_IDENTITY" "$APP_BUNDLE"
-else
-  echo "Identity '${SIGN_IDENTITY}' not found; ad-hoc signing ${APP_NAME}.app"
-  codesign --force --deep --sign - "$APP_BUNDLE" >/dev/null 2>&1 || true
+# Sign with configured certificate (fail if missing; no ad-hoc fallback)
+if ! security find-identity -p codesigning 2>/dev/null | grep -Fq "\"$SIGN_IDENTITY\""; then
+  echo "Error: Code signing identity '${SIGN_IDENTITY}' not found in keychain." >&2
+  exit 1
 fi
+echo "Signing ${APP_NAME}.app with identity: ${SIGN_IDENTITY}"
+codesign --force --deep --sign "$SIGN_IDENTITY" "$APP_BUNDLE"
 
 echo "Packaged: $APP_BUNDLE"
 
