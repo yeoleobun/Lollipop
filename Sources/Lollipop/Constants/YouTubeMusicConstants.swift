@@ -19,11 +19,15 @@ enum YouTubeMusicConstants {
         static let explore = "FEmusic_explore"
         static let charts = "FEmusic_charts"
         static let history = "FEmusic_history"
+        static let moodsAndGenres = "FEmusic_moods_and_genres"
+        static let newReleases = "FEmusic_new_releases"
         static let likedVideos = "FEmusic_liked_videos"
         static let likedAlbums = "FEmusic_liked_albums"
         static let libraryArtists = "FEmusic_library_corpus_track_artists"
         static let likedMusicPlaylist = "VLLM"
         static let likedMusicShortId = "LM"
+        static let episodesForLaterPlaylist = "VLSE"
+        static let episodesForLaterShortId = "SE"
     }
 
     // MARK: - ID Prefixes
@@ -36,6 +40,7 @@ enum YouTubeMusicConstants {
         static let albumPlaylist = "OLAK"
         static let userPlaylist = "PL"
         static let radioPlaylist = "RDCLAK"
+        static let trackRadio = "RDAMVM"
     }
 
     // MARK: - Search Params
@@ -66,10 +71,12 @@ enum YouTubeMusicConstants {
     }
 
     static func isEditablePlaylistBrowseId(_ normalizedId: String) -> Bool {
-        normalizedId.hasPrefix(Prefix.playlistVL) && normalizedId != BrowseID.likedMusicPlaylist
+        normalizedId.hasPrefix(Prefix.playlistVL)
+            && normalizedId != BrowseID.likedMusicPlaylist
+            && normalizedId != BrowseID.episodesForLaterPlaylist
     }
 
-    /// Ensures playlist IDs (`OLAK5uy_`, `PL`, `RDCLAK`, `LM`) have the `VL` prefix required by Innertube `browse`.
+    /// Ensures playlist IDs (`OLAK5uy_`, `PL`, `RDCLAK`, `LM`, `SE`) have the `VL` prefix required by Innertube `browse`.
     static func normalizeCollectionBrowseId(_ rawId: String) -> String {
         let trimmed = rawId.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.hasPrefix(Prefix.album)
@@ -81,7 +88,8 @@ enum YouTubeMusicConstants {
         if trimmed.hasPrefix(Prefix.albumPlaylist)
             || trimmed.hasPrefix(Prefix.userPlaylist)
             || trimmed.hasPrefix(Prefix.radioPlaylist)
-            || trimmed == BrowseID.likedMusicShortId {
+            || trimmed == BrowseID.likedMusicShortId
+            || trimmed == BrowseID.episodesForLaterShortId {
             return Prefix.playlistVL + trimmed
         }
         return trimmed
@@ -143,8 +151,8 @@ enum YouTubeMusicConstants {
             "window.__lollipop?.setVolume(\(volume))"
         }
 
-        static func playVideo(videoIdJSON: String, playlistIdJSON: String) -> String {
-            "window.__lollipop?.playVideo(\(videoIdJSON), \(playlistIdJSON))"
+        static func playVideo(videoIdJSON: String, playlistIdJSON: String, paramsJSON: String = "null") -> String {
+            "window.__lollipop?.playVideo(\(videoIdJSON), \(playlistIdJSON), \(paramsJSON))"
         }
 
         // MARK: - Async Bridge Calls
@@ -155,6 +163,21 @@ enum YouTubeMusicConstants {
 
         static func fetchBrowse(browseIdJSON: String) -> String {
             "return await window.__lollipop.fetchBrowse(\(browseIdJSON));"
+        }
+
+        static func fetchBrowsePage(
+            browseIdJSON: String,
+            paramsJSON: String,
+            maxContinuationPages: Int
+        ) -> String {
+            "return await window.__lollipop.fetchBrowsePage(\(browseIdJSON), \(paramsJSON), \(maxContinuationPages));"
+        }
+
+        static func fetchBrowseContinuation(
+            continuationJSON: String,
+            sectionOffset: Int
+        ) -> String {
+            "return await window.__lollipop.fetchBrowseContinuation(\(continuationJSON), \(sectionOffset));"
         }
 
         static let fetchAccountProfile = "return await window.__lollipop.fetchAccountProfile();"

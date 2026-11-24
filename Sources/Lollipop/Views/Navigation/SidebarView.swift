@@ -154,16 +154,25 @@ struct SidebarView: View {
                 if !resolvedCover.isEmpty {
                     ArtworkView(urlString: resolvedCover, size: 22, cornerRadius: 5)
                 } else {
-                    Image(systemName: AppSymbols.playlist)
+                    Image(systemName: playlist.isAuto ? AppSymbols.autoPlaylistClock : AppSymbols.playlist)
                         .font(.system(size: 16, weight: .regular))
                         .foregroundStyle(sidebarIconColor)
                         .frame(width: 24, alignment: .center)
                 }
 
-                Text(playlist.title)
-                    .font(AppTypography.sidebarItem(isSelected: isSelected))
-                    .foregroundStyle(isSelected ? Color.primary : AppColors.sidebarItemText)
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(playlist.title)
+                        .font(AppTypography.sidebarItem(isSelected: isSelected))
+                        .foregroundStyle(isSelected ? Color.primary : AppColors.sidebarItemText)
+                        .lineLimit(1)
+
+                    if playlist.isAuto {
+                        Text(L10n.autoPlaylist)
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                    }
+                }
 
                 Spacer()
             }
@@ -176,22 +185,24 @@ struct SidebarView: View {
         }
         .buttonStyle(.plain)
         .contextMenu {
-            Button {
-                engine.presentEditPlaylist(
-                    playlistId: playlist.id,
-                    title: playlist.title,
-                    description: ""
-                )
-            } label: {
-                Label(L10n.editPlaylistEllipsis, systemImage: AppSymbols.pencil)
-            }
+            if !playlist.isAuto {
+                Button {
+                    engine.presentEditPlaylist(
+                        playlistId: playlist.id,
+                        title: playlist.title,
+                        description: ""
+                    )
+                } label: {
+                    Label(L10n.editPlaylistEllipsis, systemImage: AppSymbols.pencil)
+                }
 
-            Divider()
+                Divider()
 
-            Button(role: .destructive) {
-                playlistToDelete = playlist
-            } label: {
-                Label(L10n.deletePlaylist, systemImage: AppSymbols.trash)
+                Button(role: .destructive) {
+                    playlistToDelete = playlist
+                } label: {
+                    Label(L10n.deletePlaylist, systemImage: AppSymbols.trash)
+                }
             }
         }
         .listRowInsets(EdgeInsets(top: 1, leading: 0, bottom: 1, trailing: 0))

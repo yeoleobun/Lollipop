@@ -58,6 +58,7 @@ enum L10n {
     static var hideEmbeddedPlayerMenu: String { t("Hide Embedded Player", "隐藏内置播放器") }
 
     // MARK: - Filters & Tabs
+    static var all: String { t("All", "全部") }
     static var topResults: String { t("Top", "最佳结果") }
     static var songs: String { t("Songs", "歌曲") }
     static var albums: String { t("Albums", "专辑") }
@@ -81,6 +82,12 @@ enum L10n {
     static var back: String { t("Back", "返回") }
     static var goToArtist: String { t("Go to Artist", "前往艺人") }
     static var goToAlbum: String { t("Go to Album", "前往专辑") }
+    static var startRadio: String { t("Start Radio", "开启电台") }
+    static var playAll: String { t("Play All", "全部播放") }
+    static var more: String { t("More", "更多") }
+    static var loadMore: String { t("Load More", "加载更多") }
+    static var loadingMore: String { t("Loading more…", "正在加载更多…") }
+    static var autoPlaylist: String { t("Auto playlist", "自动播放列表") }
     static var loadingArtist: String { t("Loading artist…", "正在加载艺人…") }
 
     // MARK: - Search, Empty & Error States

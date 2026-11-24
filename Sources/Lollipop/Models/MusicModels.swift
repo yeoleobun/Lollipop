@@ -60,6 +60,7 @@ enum MediaItemKind: String, Codable, Sendable, Hashable {
     case album
     case playlist
     case artist
+    case category
     case unknown
 }
 
@@ -71,6 +72,7 @@ struct MusicItem: Identifiable, Hashable, Codable, Sendable {
     var kind: MediaItemKind
     var videoId: String?
     var browseId: String?
+    var browseParams: String? = nil
     var playlistId: String?
     var durationText: String?
     var artistName: String?
@@ -78,6 +80,8 @@ struct MusicItem: Identifiable, Hashable, Codable, Sendable {
     var artistBrowseId: String?
     var albumBrowseId: String?
     var setVideoId: String? = nil
+    var accentColorHex: String? = nil
+    var iconType: String? = nil
     var isExplicit: Bool = false
 
     var resolvedArtworkURL: URL? {
@@ -90,6 +94,8 @@ enum SectionLayout: String, Codable, Sendable {
     case carousel
     case quickPicks
     case list
+    case moodGrid
+    case categoryGrid
 }
 
 struct MusicSection: Identifiable, Hashable, Codable, Sendable {
@@ -97,7 +103,34 @@ struct MusicSection: Identifiable, Hashable, Codable, Sendable {
     var title: String
     var subtitle: String?
     var layout: SectionLayout
+    var moreBrowseId: String? = nil
+    var moreBrowseParams: String? = nil
+    var moreButtonTitle: String? = nil
+    var playAllVideoId: String? = nil
+    var playAllPlaylistId: String? = nil
+    var playAllParams: String? = nil
     var items: [MusicItem]
+}
+
+struct BrowseChip: Identifiable, Hashable, Codable, Sendable {
+    var id: String
+    var title: String
+    var browseId: String
+    var params: String?
+    var isSelected: Bool
+    var deselectBrowseId: String?
+    var deselectParams: String?
+}
+
+struct BrowsePagePayload: Decodable, Sendable {
+    var chips: [BrowseChip]
+    var sections: [MusicSection]
+    var continuation: String?
+}
+
+struct BrowseContinuationPayload: Decodable, Sendable {
+    var sections: [MusicSection]
+    var continuation: String?
 }
 
 struct CollectionDetail: Identifiable, Hashable, Codable, Sendable {
@@ -143,10 +176,15 @@ struct LyricsData: Equatable, Sendable {
 }
 
 struct UserPlaylist: Identifiable, Hashable, Codable, Sendable {
-    var id: String // browseId e.g. VLPL...
+    var id: String // browseId e.g. VLPL... or VLSE
     var title: String
     var subtitle: String
     var artworkURL: String
+    var isAutoPlaylist: Bool? = nil
+
+    var isAuto: Bool {
+        isAutoPlaylist == true || id == YouTubeMusicConstants.BrowseID.episodesForLaterPlaylist
+    }
 }
 
 // MARK: - Formatting Helpers

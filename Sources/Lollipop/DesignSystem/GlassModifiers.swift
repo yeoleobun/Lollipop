@@ -35,10 +35,12 @@ struct LiquidGlassCapsuleModifier: ViewModifier {
             let base = tint.map { Glass.regular.tint($0) } ?? .regular
             content
                 .glassEffect(interactive ? base.interactive() : base, in: Capsule())
+                .contentShape(Capsule())
         } else {
             content
                 .background(.ultraThinMaterial, in: Capsule())
                 .overlay(Capsule().strokeBorder(.white.opacity(0.16), lineWidth: 0.75))
+                .contentShape(Capsule())
         }
     }
 }

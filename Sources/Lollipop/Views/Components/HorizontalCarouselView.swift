@@ -19,7 +19,7 @@ struct HorizontalCarouselView: View {
             ZStack(alignment: .top) {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(alignment: .top, spacing: AppMetrics.carouselSpacing) {
-                        ForEach(Array(items.enumerated()), id: \.element.id) { idx, item in
+                        ForEach(items) { item in
                             MediaCardView(
                                 item: item,
                                 size: cardSize,
@@ -27,7 +27,7 @@ struct HorizontalCarouselView: View {
                                 onPlay: { onPlay(item) },
                                 onOpenRoute: onOpenRoute
                             )
-                            .id(idx)
+                            .id(item.id)
                         }
                     }
                     .padding(.vertical, verticalInset)
@@ -40,8 +40,10 @@ struct HorizontalCarouselView: View {
                             chevronButton(systemImage: AppSymbols.chevronLeft) {
                                 let target = max(0, anchorIndex - 3)
                                 anchorIndex = target
-                                withAnimation(AppAnimations.carouselPage) {
-                                    proxy.scrollTo(target, anchor: .leading)
+                                if items.indices.contains(target) {
+                                    withAnimation(AppAnimations.carouselPage) {
+                                        proxy.scrollTo(items[target].id, anchor: .leading)
+                                    }
                                 }
                             }
                             .padding(.leading, -10)
@@ -53,8 +55,10 @@ struct HorizontalCarouselView: View {
                             chevronButton(systemImage: AppSymbols.chevronRight) {
                                 let target = min(items.count - 1, anchorIndex + 3)
                                 anchorIndex = target
-                                withAnimation(AppAnimations.carouselPage) {
-                                    proxy.scrollTo(target, anchor: .leading)
+                                if items.indices.contains(target) {
+                                    withAnimation(AppAnimations.carouselPage) {
+                                        proxy.scrollTo(items[target].id, anchor: .leading)
+                                    }
                                 }
                             }
                             .padding(.trailing, -10)
@@ -70,6 +74,10 @@ struct HorizontalCarouselView: View {
                     isHovered = hovering
                 }
             }
+            .onChange(of: items.first?.id) { _, _ in
+                anchorIndex = 0
+            }
+            .animation(AppAnimations.standard, value: items)
         }
     }
 

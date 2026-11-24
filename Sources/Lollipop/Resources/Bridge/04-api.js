@@ -15,6 +15,8 @@
     parseResponsiveListItem,
     extractSectionsFromContents,
     findSectionListContents,
+    extractBrowseChips,
+    extractContinuationToken,
     findLyricsInObject,
     getMoviePlayer,
     startStateTicker,
@@ -25,10 +27,59 @@
   window.__lollipop = {
     ...playerControls,
 
-    async fetchBrowse(browseId) {
-      const data = await innertube('browse', { browseId });
+    async fetchBrowse(browseId, params) {
+      const body = { browseId };
+      if (params) body.params = params;
+      const data = await innertube('browse', body);
       const contents = findSectionListContents(data);
       return JSON.stringify(extractSectionsFromContents(contents));
+    },
+
+    async fetchBrowsePage(browseId, params, maxContinuationPages) {
+      const body = { browseId };
+      if (params) body.params = params;
+      const data = await innertube('browse', body);
+      const chips = extractBrowseChips(data);
+      const allSections = extractSectionsFromContents(findSectionListContents(data), 0);
+      let continuation = extractContinuationToken(data);
+      const extraPages = Math.max(0, Math.min(Number(maxContinuationPages) || 0, 5));
+
+      for (let page = 0; page < extraPages && continuation; page++) {
+        try {
+          const nextData = await innertube('browse', { continuation });
+          const nextSections = extractSectionsFromContents(
+            findSectionListContents(nextData),
+            (page + 1) * 100
+          );
+          allSections.push(...nextSections);
+          const nextToken = extractContinuationToken(nextData);
+          continuation = nextToken && nextToken !== continuation ? nextToken : null;
+        } catch (_) {
+          break;
+        }
+      }
+
+      return JSON.stringify({
+        chips,
+        sections: allSections,
+        continuation: continuation || null
+      });
+    },
+
+    async fetchBrowseContinuation(continuation, sectionOffset) {
+      if (!continuation) {
+        return JSON.stringify({ sections: [], continuation: null });
+      }
+      const data = await innertube('browse', { continuation });
+      const sections = extractSectionsFromContents(
+        findSectionListContents(data),
+        Number(sectionOffset) || 1000
+      );
+      const nextToken = extractContinuationToken(data);
+      return JSON.stringify({
+        sections,
+        continuation: nextToken && nextToken !== continuation ? nextToken : null
+      });
     },
 
     async fetchArtist(browseId) {
@@ -61,7 +112,7 @@
 
     async fetchCollection(rawBrowseId) {
       let browseId = (rawBrowseId || '').trim();
-      if (/^(OLAK|PL|RDCLAK|LM)/.test(browseId)) {
+      if (/^(OLAK|PL|RDCLAK|LM|SE$)/.test(browseId)) {
         browseId = BROWSE_PREFIX.PLAYLIST_VL + browseId;
       }
       const data = await innertube('browse', { browseId });
@@ -219,22 +270,34 @@
           !title ||
           id === BROWSE_ID.LIKED_MUSIC_VL ||
           id === BROWSE_ID.LIKED_MUSIC_SHORT ||
+          id === BROWSE_ID.EPISODES_FOR_LATER_VL ||
+          id === BROWSE_ID.EPISODES_FOR_LATER_SHORT ||
           seen.has(id)
         ) {
           return;
         }
         if (id.startsWith(BROWSE_PREFIX.ARTIST) || id.startsWith(BROWSE_PREFIX.ALBUM)) return;
         const normalizedId =
-          id.startsWith('PL') || id.startsWith(BROWSE_PREFIX.RADIO)
+          id.startsWith('PL') ||
+          id.startsWith(BROWSE_PREFIX.RADIO)
             ? `${BROWSE_PREFIX.PLAYLIST_VL}${id}`
             : id;
-        if (!normalizedId.startsWith(BROWSE_PREFIX.PLAYLIST_VL) || seen.has(normalizedId)) return;
+        if (
+          !normalizedId.startsWith(BROWSE_PREFIX.PLAYLIST_VL) ||
+          normalizedId === BROWSE_ID.EPISODES_FOR_LATER_VL ||
+          seen.has(normalizedId)
+        ) {
+          return;
+        }
         seen.add(normalizedId);
+        const sub = subtitle || '';
+        const isAutoPlaylist = /auto playlist|自动播放列表|自動播放清單/i.test(sub);
         playlists.push({
           id: normalizedId,
           title,
-          subtitle: subtitle || '',
-          artworkURL: artworkURL || ''
+          subtitle: sub,
+          artworkURL: artworkURL || '',
+          isAutoPlaylist
         });
       }
 
@@ -369,6 +432,7 @@
       if (!videoId) return JSON.stringify({ queue: [], lyrics: null });
 
       let activePlaylistId = null;
+      let activeParams = null;
       try {
         const mp = getMoviePlayer();
         if (mp && typeof mp.getPlaylistId === 'function') {
@@ -378,9 +442,19 @@
       if (!activePlaylistId) {
         activePlaylistId = new URLSearchParams(window.location.search).get('list') || null;
       }
+      const lastReq = Internal.lastRequestedPlayback;
+      if (lastReq && Date.now() - lastReq.at < 15000) {
+        if (!activePlaylistId && lastReq.playlistId) {
+          activePlaylistId = lastReq.playlistId;
+        }
+        if (lastReq.params && (!activePlaylistId || activePlaylistId === lastReq.playlistId)) {
+          activeParams = lastReq.params;
+        }
+      }
 
       const nextBody = { videoId, isAudioOnly: true, enablePersistentPlaylistPanel: true };
       if (activePlaylistId) nextBody.playlistId = activePlaylistId;
+      if (activeParams) nextBody.params = activeParams;
 
       const data = await innertube('next', nextBody);
       const tabs =

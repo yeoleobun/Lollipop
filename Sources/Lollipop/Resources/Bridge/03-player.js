@@ -405,17 +405,34 @@
       return false;
     },
 
-    playVideo(videoId, playlistId) {
+    playVideo(videoId, playlistId, params) {
       const app = document.querySelector(SELECTORS.YTMUSIC_APP);
-      const watchEndpoint = {};
-      if (videoId) watchEndpoint.videoId = videoId;
-      if (playlistId) watchEndpoint.playlistId = playlistId;
+      const effectivePlaylistId = playlistId || null;
+      Internal.lastRequestedPlayback = {
+        videoId: videoId || null,
+        playlistId: effectivePlaylistId,
+        params: params || null,
+        at: Date.now()
+      };
+
+      const endpoint = videoId
+        ? {
+            watchEndpoint: {
+              videoId,
+              ...(effectivePlaylistId ? { playlistId: effectivePlaylistId } : {}),
+              ...(params ? { params } : {})
+            }
+          }
+        : {
+            watchPlaylistEndpoint: {
+              ...(effectivePlaylistId ? { playlistId: effectivePlaylistId } : {}),
+              ...(params ? { params } : {})
+            }
+          };
 
       if (app && typeof app.fire === 'function') {
         try {
-          app.fire('yt-navigate', {
-            endpoint: { watchEndpoint }
-          });
+          app.fire('yt-navigate', { endpoint });
           setTimeout(() => {
             const v = getVideoEl();
             if (v && v.paused) v.play().catch(() => {});
@@ -427,7 +444,8 @@
       // Fallback URL navigation
       let url = `${CONSTANTS.ORIGIN}/watch?`;
       if (videoId) url += `v=${encodeURIComponent(videoId)}`;
-      if (playlistId) url += `${videoId ? '&' : ''}list=${encodeURIComponent(playlistId)}`;
+      if (effectivePlaylistId) url += `${videoId ? '&' : ''}list=${encodeURIComponent(effectivePlaylistId)}`;
+      if (params) url += `&params=${encodeURIComponent(params)}`;
       window.location.href = url;
       return true;
     }

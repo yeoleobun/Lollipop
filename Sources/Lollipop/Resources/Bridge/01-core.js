@@ -23,7 +23,9 @@
       LIKED_PLAYLISTS: 'FEmusic_liked_playlists',
       LIBRARY_LANDING: 'FEmusic_library_landing',
       LIKED_MUSIC_VL: 'VLLM',
-      LIKED_MUSIC_SHORT: 'LM'
+      LIKED_MUSIC_SHORT: 'LM',
+      EPISODES_FOR_LATER_VL: 'VLSE',
+      EPISODES_FOR_LATER_SHORT: 'SE'
     }
   };
 

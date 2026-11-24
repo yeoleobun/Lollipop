@@ -68,7 +68,16 @@ final class YouTubeMusicEngine: NSObject, WKNavigationDelegate, WKUIDelegate {
 
     // MARK: - Content State
     var homeSections: [MusicSection] = []
+    var homeChips: [BrowseChip] = []
+    var selectedHomeChip: BrowseChip? = nil
+    var homeContinuation: String? = nil
+    var isLoadingMoreHome = false
+    private var homeFetchGeneration: Int = 0
+
     var exploreSections: [MusicSection] = []
+    var exploreContinuation: String? = nil
+    var isLoadingMoreExplore = false
+
     var chartsSections: [MusicSection] = []
     var historySections: [MusicSection] = []
     var librarySections: [MusicSection] = []
@@ -165,6 +174,8 @@ final class YouTubeMusicEngine: NSObject, WKNavigationDelegate, WKUIDelegate {
         playerState.accountEmail = ""
         playerState.accountAvatarURL = ""
         userPlaylists = []
+        homeChips = []
+        selectedHomeChip = nil
         cache.clearAll()
         loadYouTubeMusic()
     }
@@ -364,10 +375,20 @@ final class YouTubeMusicEngine: NSObject, WKNavigationDelegate, WKUIDelegate {
         evalVoid(Bridge.cycleRepeat)
     }
 
-    func play(videoId: String, playlistId: String? = nil) {
+    func play(videoId: String, playlistId: String? = nil, params: String? = nil) {
         let vidJSON = jsString(videoId)
         let plJSON = playlistId.map { jsString($0) } ?? "null"
-        evalVoid(Bridge.playVideo(videoIdJSON: vidJSON, playlistIdJSON: plJSON))
+        let paramsJSON = params.map { jsString($0) } ?? "null"
+        if playlistId != nil {
+            lastFetchedVideoId = ""
+        }
+        evalVoid(Bridge.playVideo(videoIdJSON: vidJSON, playlistIdJSON: plJSON, paramsJSON: paramsJSON))
+        if !videoId.isEmpty, playlistId != nil, videoId == playerState.videoId {
+            Task {
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                await refreshQueueAndLyrics(videoId: videoId)
+            }
+        }
     }
 
     func play(item: MusicItem) {
@@ -378,21 +399,199 @@ final class YouTubeMusicEngine: NSObject, WKNavigationDelegate, WKUIDelegate {
         }
     }
 
+    func startRadio(forVideoId videoId: String) {
+        guard !videoId.isEmpty else { return }
+        play(videoId: videoId, playlistId: YouTubeMusicConstants.Prefix.trackRadio + videoId)
+    }
+
     // MARK: - Content Fetching
 
-    func refreshHome() async {
-        await fetchBrowseSections(
-            browseId: BrowseID.home,
-            setLoading: { isLoadingHome = $0 },
-            applySections: { homeSections = $0 }
+    func refreshHome(forceRefresh: Bool = true) async {
+        homeFetchGeneration += 1
+        let gen = homeFetchGeneration
+        isLoadingHome = true
+        defer { if homeFetchGeneration == gen { isLoadingHome = false } }
+
+        let targetBrowseId = selectedHomeChip?.browseId ?? BrowseID.home
+        let targetParams = selectedHomeChip?.params
+        let extraPages = selectedHomeChip == nil ? 2 : 1
+        do {
+            let page = try await cache.loadBrowsePage(
+                browseId: targetBrowseId,
+                params: targetParams,
+                forceRefresh: forceRefresh
+            ) {
+                try await self.fetchBrowsePage(
+                    browseId: targetBrowseId,
+                    params: targetParams,
+                    maxContinuationPages: extraPages
+                )
+            }
+            guard homeFetchGeneration == gen else { return }
+            homeSections = page.sections
+            if !page.chips.isEmpty {
+                homeChips = page.chips
+            }
+            homeContinuation = page.continuation
+            errorMessage = nil
+        } catch {
+            if homeFetchGeneration == gen {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    func selectHomeChip(_ chip: BrowseChip) async {
+        let isDeselecting = selectedHomeChip?.id == chip.id || chip.isSelected
+        let nextChip: BrowseChip? = isDeselecting ? nil : chip
+        let browseId = isDeselecting ? (chip.deselectBrowseId ?? BrowseID.home) : chip.browseId
+        let params = isDeselecting ? chip.deselectParams : chip.params
+        let extraPages = nextChip == nil ? 2 : 1
+
+        selectedHomeChip = nextChip
+        homeFetchGeneration += 1
+        let gen = homeFetchGeneration
+
+        // Instant smooth update from unified cache if fresh
+        if let cached = cache.browsePage(browseId: browseId, params: params) {
+            homeSections = cached.sections
+            if !cached.chips.isEmpty { homeChips = cached.chips }
+            homeContinuation = cached.continuation
+            errorMessage = nil
+            return
+        }
+
+        isLoadingHome = true
+        defer { if homeFetchGeneration == gen { isLoadingHome = false } }
+        do {
+            let page = try await cache.loadBrowsePage(
+                browseId: browseId,
+                params: params,
+                forceRefresh: false
+            ) {
+                try await self.fetchBrowsePage(
+                    browseId: browseId,
+                    params: params,
+                    maxContinuationPages: extraPages
+                )
+            }
+            guard homeFetchGeneration == gen else { return }
+            homeSections = page.sections
+            if !page.chips.isEmpty { homeChips = page.chips }
+            homeContinuation = page.continuation
+            errorMessage = nil
+        } catch {
+            if homeFetchGeneration == gen {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    func loadMoreHome() async {
+        guard !isLoadingMoreHome, let token = homeContinuation, !token.isEmpty else { return }
+        isLoadingMoreHome = true
+        defer { isLoadingMoreHome = false }
+        let targetBrowseId = selectedHomeChip?.browseId ?? BrowseID.home
+        let targetParams = selectedHomeChip?.params
+        do {
+            let payload = try await fetchBrowseContinuation(
+                continuation: token,
+                sectionOffset: (homeSections.count + 1) * 10
+            )
+            if !payload.sections.isEmpty {
+                homeSections.append(contentsOf: payload.sections)
+                cache.index(sections: payload.sections)
+                cache.storeBrowsePage(
+                    BrowsePagePayload(
+                        chips: homeChips,
+                        sections: homeSections,
+                        continuation: payload.continuation
+                    ),
+                    browseId: targetBrowseId,
+                    params: targetParams
+                )
+            }
+            homeContinuation = payload.continuation
+        } catch {
+            homeContinuation = nil
+        }
+    }
+
+    func refreshExplore(forceRefresh: Bool = true) async {
+        isLoadingExplore = true
+        defer { isLoadingExplore = false }
+        do {
+            let page = try await cache.loadBrowsePage(
+                browseId: BrowseID.explore,
+                params: nil,
+                forceRefresh: forceRefresh
+            ) {
+                try await self.fetchBrowsePage(
+                    browseId: BrowseID.explore,
+                    params: nil,
+                    maxContinuationPages: 1
+                )
+            }
+            exploreSections = page.sections
+            exploreContinuation = page.continuation
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func loadMoreExplore() async {
+        guard !isLoadingMoreExplore, let token = exploreContinuation, !token.isEmpty else { return }
+        isLoadingMoreExplore = true
+        defer { isLoadingMoreExplore = false }
+        do {
+            let payload = try await fetchBrowseContinuation(
+                continuation: token,
+                sectionOffset: (exploreSections.count + 1) * 10
+            )
+            if !payload.sections.isEmpty {
+                exploreSections.append(contentsOf: payload.sections)
+                cache.index(sections: payload.sections)
+                cache.storeBrowsePage(
+                    BrowsePagePayload(
+                        chips: [],
+                        sections: exploreSections,
+                        continuation: payload.continuation
+                    ),
+                    browseId: BrowseID.explore,
+                    params: nil
+                )
+            }
+            exploreContinuation = payload.continuation
+        } catch {
+            exploreContinuation = nil
+        }
+    }
+
+    func fetchBrowsePage(
+        browseId: String,
+        params: String? = nil,
+        maxContinuationPages: Int = 1
+    ) async throws -> BrowsePagePayload {
+        let paramsJSON = params.map { jsString($0) } ?? "null"
+        return try await callAsyncBridge(
+            Bridge.fetchBrowsePage(
+                browseIdJSON: jsString(browseId),
+                paramsJSON: paramsJSON,
+                maxContinuationPages: maxContinuationPages
+            )
         )
     }
 
-    func refreshExplore() async {
-        await fetchBrowseSections(
-            browseId: BrowseID.explore,
-            setLoading: { isLoadingExplore = $0 },
-            applySections: { exploreSections = $0 }
+    func fetchBrowseContinuation(
+        continuation: String,
+        sectionOffset: Int = 1000
+    ) async throws -> BrowseContinuationPayload {
+        try await callAsyncBridge(
+            Bridge.fetchBrowseContinuation(
+                continuationJSON: jsString(continuation),
+                sectionOffset: sectionOffset
+            )
         )
     }
 

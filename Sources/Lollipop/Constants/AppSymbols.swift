@@ -70,4 +70,10 @@ enum AppSymbols {
     static let waveform = "waveform"
     static let waveformCircleFill = "waveform.circle.fill"
     static let fallbackAppIcon = "dot.radiowaves.up.forward"
+    static let radio = "dot.radiowaves.left.and.right"
+    static let sparkles = "sparkles"
+    static let moodFace = "face.smiling"
+    static let newRelease = "seal"
+    static let podcasts = "mic"
+    static let autoPlaylistClock = "clock.arrow.circlepath"
 }

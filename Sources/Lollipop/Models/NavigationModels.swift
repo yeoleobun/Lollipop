@@ -167,9 +167,16 @@ struct NavigationRoute: Hashable {
     var autoPlayVideoId: String? = nil
 }
 
+struct BrowseRoute: Hashable {
+    let browseId: String
+    let params: String?
+    let title: String
+}
+
 enum AppRoute: Hashable {
     case collection(NavigationRoute)
     case section(MusicSection)
+    case browse(BrowseRoute)
 }
 
 // MARK: - Shared Item Navigation Helper

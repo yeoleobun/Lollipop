@@ -95,7 +95,16 @@ struct TrackActionsMenuContent: View {
             Divider()
         }
 
+        if let vid = videoId, !vid.isEmpty, let engine {
+            Button {
+                engine.startRadio(forVideoId: vid)
+            } label: {
+                Label(L10n.startRadio, systemImage: AppSymbols.radio)
+            }
+        }
+
         if let vid = videoId, !vid.isEmpty, let engine, engine.isSignedIn {
+            let editablePlaylists = engine.userPlaylists.filter { !$0.isAuto }
             Menu {
                 Button {
                     engine.presentCreatePlaylist(initialVideoId: vid)
@@ -103,9 +112,9 @@ struct TrackActionsMenuContent: View {
                     Label(L10n.newPlaylistEllipsis, systemImage: AppSymbols.plus)
                 }
 
-                if !engine.userPlaylists.isEmpty {
+                if !editablePlaylists.isEmpty {
                     Divider()
-                    ForEach(engine.userPlaylists) { playlist in
+                    ForEach(editablePlaylists) { playlist in
                         Button {
                             Task {
                                 _ = await engine.addTrackToPlaylist(playlistId: playlist.id, videoId: vid)

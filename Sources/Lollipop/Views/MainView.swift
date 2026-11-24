@@ -137,6 +137,13 @@ struct MainView: View {
         }
     }
 
+    private func openBrowse(_ route: BrowseRoute) {
+        withAnimation(AppAnimations.routeSpring) {
+            showInspector = false
+            navigationPath.append(.browse(route))
+        }
+    }
+
     private func navigateBack() {
         guard !navigationPath.isEmpty else { return }
         withAnimation(AppAnimations.routeSpring) {
@@ -225,6 +232,15 @@ struct MainView: View {
                 engine: engine,
                 onOpenRoute: openRoute
             )
+
+        case .browse(let browseRoute):
+            RemoteBrowseView(
+                route: browseRoute,
+                engine: engine,
+                onOpenCollection: openRoute,
+                onOpenSection: openSection,
+                onOpenBrowse: openBrowse
+            )
         }
     }
 
@@ -237,8 +253,15 @@ struct MainView: View {
                 sections: engine.homeSections,
                 isLoading: engine.isLoadingHome,
                 engine: engine,
+                chips: engine.homeChips,
+                selectedChipId: engine.selectedHomeChip?.id,
+                onSelectChip: { chip in await engine.selectHomeChip(chip) },
                 onOpenCollection: openRoute,
                 onOpenSection: openSection,
+                onOpenBrowse: openBrowse,
+                hasMore: engine.homeContinuation != nil,
+                isLoadingMore: engine.isLoadingMoreHome,
+                onLoadMore: { await engine.loadMoreHome() },
                 onRefresh: { await engine.refreshHome() }
             )
 
@@ -250,6 +273,10 @@ struct MainView: View {
                 engine: engine,
                 onOpenCollection: openRoute,
                 onOpenSection: openSection,
+                onOpenBrowse: openBrowse,
+                hasMore: engine.exploreContinuation != nil,
+                isLoadingMore: engine.isLoadingMoreExplore,
+                onLoadMore: { await engine.loadMoreExplore() },
                 onRefresh: { await engine.refreshExplore() }
             )
 
@@ -261,6 +288,7 @@ struct MainView: View {
                 engine: engine,
                 onOpenCollection: openRoute,
                 onOpenSection: openSection,
+                onOpenBrowse: openBrowse,
                 onRefresh: { await engine.refreshCharts() }
             )
 

@@ -8,14 +8,23 @@ import Observation
 @MainActor
 @Observable
 final class MusicCacheStore {
+    private struct CachedBrowseEntry {
+        let page: BrowsePagePayload
+        let cachedAt: Date
+    }
+
+    static let browseCacheTTL: TimeInterval = 600 // 10 minutes
+
     private(set) var collections: [String: CollectionDetail] = [:]
     private(set) var artists: [String: ArtistDetail] = [:]
     private(set) var tracks: [String: MusicItem] = [:]
     private(set) var lyrics: [String: LyricsData] = [:]
     private(set) var customPlaylistCovers: [String: String] = [:]
+    private var browsePages: [String: CachedBrowseEntry] = [:]
 
     private var inFlightCollections: [String: Task<CollectionDetail?, Never>] = [:]
     private var inFlightArtists: [String: Task<ArtistDetail?, Never>] = [:]
+    private var inFlightBrowsePages: [String: Task<BrowsePagePayload, Error>] = [:]
 
     init() {
         loadSavedCustomCovers()
@@ -242,6 +251,63 @@ final class MusicCacheStore {
         return result
     }
 
+    // MARK: - Unified Browse Page Cache (Home Chips, Explore, Moods & Genres, Remote More)
+
+    static func browsePageKey(browseId: String, params: String?) -> String {
+        if let params, !params.isEmpty {
+            return "\(browseId)|\(params)"
+        }
+        return browseId
+    }
+
+    func browsePage(browseId: String, params: String?, allowExpired: Bool = false) -> BrowsePagePayload? {
+        let key = Self.browsePageKey(browseId: browseId, params: params)
+        guard let entry = browsePages[key] else { return nil }
+        if !allowExpired && Date().timeIntervalSince(entry.cachedAt) > Self.browseCacheTTL {
+            return nil
+        }
+        return entry.page
+    }
+
+    func storeBrowsePage(_ page: BrowsePagePayload, browseId: String, params: String?) {
+        guard !page.sections.isEmpty else { return }
+        let key = Self.browsePageKey(browseId: browseId, params: params)
+        browsePages[key] = CachedBrowseEntry(page: page, cachedAt: Date())
+        index(sections: page.sections)
+    }
+
+    func loadBrowsePage(
+        browseId: String,
+        params: String?,
+        forceRefresh: Bool = false,
+        fetcher: @escaping @MainActor () async throws -> BrowsePagePayload
+    ) async throws -> BrowsePagePayload {
+        let key = Self.browsePageKey(browseId: browseId, params: params)
+        if !forceRefresh, let cached = browsePage(browseId: browseId, params: params) {
+            return cached
+        }
+        if !forceRefresh, let existing = inFlightBrowsePages[key] {
+            return try await existing.value
+        }
+
+        let task = Task<BrowsePagePayload, Error> { @MainActor in
+            let fetched = try await fetcher()
+            if !fetched.sections.isEmpty {
+                self.storeBrowsePage(fetched, browseId: browseId, params: params)
+            }
+            return fetched
+        }
+        inFlightBrowsePages[key] = task
+        do {
+            let result = try await task.value
+            inFlightBrowsePages.removeValue(forKey: key)
+            return result
+        } catch {
+            inFlightBrowsePages.removeValue(forKey: key)
+            throw error
+        }
+    }
+
     // MARK: - Canonical Song Indexing & Enrichment
 
     func index(sections: [MusicSection]) {
@@ -292,9 +358,12 @@ final class MusicCacheStore {
         artists.removeAll()
         tracks.removeAll()
         lyrics.removeAll()
+        browsePages.removeAll()
         inFlightCollections.values.forEach { $0.cancel() }
         inFlightCollections.removeAll()
         inFlightArtists.values.forEach { $0.cancel() }
         inFlightArtists.removeAll()
+        inFlightBrowsePages.values.forEach { $0.cancel() }
+        inFlightBrowsePages.removeAll()
     }
 }

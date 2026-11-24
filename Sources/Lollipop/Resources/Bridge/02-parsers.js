@@ -96,16 +96,57 @@
       kind,
       videoId,
       browseId,
+      browseParams: nav.browseEndpoint?.params || null,
       playlistId,
       durationText: null,
       artistName: linked.artistName,
       albumTitle: linked.albumName,
       artistBrowseId: linked.artistBrowseId || (kind === 'artist' ? browseId : null),
       albumBrowseId: linked.albumBrowseId || (kind === 'album' ? browseId : null),
+      accentColorHex: null,
+      iconType: null,
       isExplicit: !!(
         r.subtitleBadges &&
         r.subtitleBadges.some(b => b?.musicInlineBadgeRenderer?.icon?.iconType === 'MUSIC_EXPLICIT_BADGE')
       )
+    };
+  }
+
+  function argbIntToHex(colorInt) {
+    if (typeof colorInt !== 'number' || !Number.isFinite(colorInt)) return null;
+    const hex = (colorInt >>> 0).toString(16).padStart(8, '0');
+    return `#${hex.slice(2).toUpperCase()}`;
+  }
+
+  function parseNavigationButton(r) {
+    if (!r) return null;
+    const title = runsText(r.buttonText);
+    if (!title) return null;
+    const browseEp = r.clickCommand?.browseEndpoint || {};
+    const browseId = browseEp.browseId || null;
+    const browseParams = browseEp.params || null;
+    const accentColorHex = argbIntToHex(r.solid?.leftStripeColor);
+    const iconType = r.iconStyle?.icon?.iconType || null;
+    const id = [browseId, browseParams, title].filter(Boolean).join(':') || `nav-${title}`;
+
+    return {
+      id,
+      title,
+      subtitle: '',
+      artworkURL: '',
+      kind: 'category',
+      videoId: null,
+      browseId,
+      browseParams,
+      playlistId: null,
+      durationText: null,
+      artistName: null,
+      albumTitle: null,
+      artistBrowseId: null,
+      albumBrowseId: null,
+      accentColorHex,
+      iconType,
+      isExplicit: false
     };
   }
 
@@ -205,12 +246,20 @@
     };
   }
 
-  function extractSectionsFromContents(contents) {
+  function extractSectionsFromContents(contents, sectionOffset = 0) {
     const sections = [];
     if (!Array.isArray(contents)) return sections;
 
     for (let idx = 0; idx < contents.length; idx++) {
       const entry = contents[idx];
+      const sectionIdx = sectionOffset + idx;
+
+      // Unwrap itemSectionRenderer if present
+      if (entry.itemSectionRenderer && Array.isArray(entry.itemSectionRenderer.contents)) {
+        const nested = extractSectionsFromContents(entry.itemSectionRenderer.contents, sectionIdx * 100);
+        sections.push(...nested);
+        continue;
+      }
 
       // 1. Carousel shelf
       const carousel = entry.musicCarouselShelfRenderer;
@@ -218,9 +267,21 @@
         const header = carousel.header?.musicCarouselShelfBasicHeaderRenderer;
         const title = runsText(header?.title) || 'Featured';
         const subtitle = runsText(header?.strapline) || null;
+        const moreBtn = header?.moreContentButton?.buttonRenderer;
+        const moreNav = moreBtn?.navigationEndpoint || {};
+        const moreBrowseId = moreNav.browseEndpoint?.browseId || null;
+        const moreBrowseParams = moreNav.browseEndpoint?.params || null;
+        const playAllVideoId = moreNav.watchEndpoint?.videoId || null;
+        const playAllPlaylistId =
+          moreNav.watchEndpoint?.playlistId || moreNav.watchPlaylistEndpoint?.playlistId || null;
+        const playAllParams =
+          moreNav.watchEndpoint?.params || moreNav.watchPlaylistEndpoint?.params || null;
+        const moreButtonTitle = runsText(moreBtn?.text) || null;
+
         const rawItems = carousel.contents || [];
         const items = [];
         let hasListItems = false;
+        let hasNavButtons = false;
 
         for (const c of rawItems) {
           if (c.musicTwoRowItemRenderer) {
@@ -230,14 +291,25 @@
             hasListItems = true;
             const parsed = parseResponsiveListItem(c.musicResponsiveListItemRenderer);
             if (parsed) items.push(parsed);
+          } else if (c.musicNavigationButtonRenderer) {
+            hasNavButtons = true;
+            const parsed = parseNavigationButton(c.musicNavigationButtonRenderer);
+            if (parsed) items.push(parsed);
           }
         }
         if (items.length > 0) {
+          const layout = hasNavButtons ? 'moodGrid' : hasListItems ? 'quickPicks' : 'carousel';
           sections.push({
-            id: `carousel-${idx}-${title}`,
+            id: `carousel-${sectionIdx}-${title}`,
             title,
             subtitle,
-            layout: hasListItems ? 'quickPicks' : 'carousel',
+            layout,
+            moreBrowseId,
+            moreBrowseParams,
+            moreButtonTitle,
+            playAllVideoId,
+            playAllPlaylistId,
+            playAllParams,
             items
           });
         }
@@ -257,7 +329,7 @@
         }
         if (items.length > 0) {
           sections.push({
-            id: `shelf-${idx}-${title}`,
+            id: `shelf-${sectionIdx}-${title}`,
             title,
             subtitle: null,
             layout: 'list',
@@ -305,7 +377,7 @@
         }
         if (items.length > 0) {
           sections.push({
-            id: `top-${idx}`,
+            id: `top-${sectionIdx}`,
             title,
             subtitle: null,
             layout: 'list',
@@ -315,23 +387,33 @@
         continue;
       }
 
-      // 4. Grid Renderer (Library albums, playlists, etc.)
+      // 4. Grid Renderer (Explore quick-entry cards, Moods & Genres full page, Library albums/playlists)
       const grid = entry.gridRenderer;
       if (grid) {
-        const title = runsText(grid.header?.gridHeaderRenderer?.title) || 'Library';
+        const title = runsText(grid.header?.gridHeaderRenderer?.title) || '';
         const items = [];
+        let hasNavButtons = false;
+        let hasIcons = false;
         for (const c of grid.items || []) {
           if (c.musicTwoRowItemRenderer) {
             const parsed = parseTwoRowItem(c.musicTwoRowItemRenderer);
             if (parsed) items.push(parsed);
+          } else if (c.musicNavigationButtonRenderer) {
+            hasNavButtons = true;
+            const parsed = parseNavigationButton(c.musicNavigationButtonRenderer);
+            if (parsed) {
+              if (parsed.iconType) hasIcons = true;
+              items.push(parsed);
+            }
           }
         }
         if (items.length > 0) {
+          const layout = hasNavButtons ? (hasIcons ? 'categoryGrid' : 'moodGrid') : 'carousel';
           sections.push({
-            id: `grid-${idx}-${title}`,
-            title,
+            id: `grid-${sectionIdx}-${title || 'items'}`,
+            title: title || (hasNavButtons ? '' : 'Library'),
             subtitle: null,
-            layout: 'carousel',
+            layout,
             items
           });
         }
@@ -341,9 +423,9 @@
     return sections;
   }
 
-  function findSectionListContents(data) {
-    if (Array.isArray(data?.contents?.sectionListRenderer?.contents)) {
-      return data.contents.sectionListRenderer.contents;
+  function findSectionListRenderer(data) {
+    if (data?.contents?.sectionListRenderer) {
+      return data.contents.sectionListRenderer;
     }
     const tabs =
       data?.contents?.singleColumnBrowseResultsRenderer?.tabs ||
@@ -351,16 +433,67 @@
       [];
     for (const tab of tabs) {
       const tr = tab.tabRenderer;
-      if (!tr || !tr.content) continue;
-      const sl = tr.content.sectionListRenderer;
-      if (sl && Array.isArray(sl.contents)) return sl.contents;
+      if (tr?.content?.sectionListRenderer) return tr.content.sectionListRenderer;
     }
     const twoCol = data?.contents?.twoColumnBrowseResultsRenderer;
-    if (twoCol) {
-      const sec = twoCol.secondaryContents?.sectionListRenderer?.contents;
-      if (Array.isArray(sec)) return sec;
+    if (twoCol?.secondaryContents?.sectionListRenderer) {
+      return twoCol.secondaryContents.sectionListRenderer;
     }
-    return [];
+    if (data?.continuationContents?.sectionListContinuation) {
+      return data.continuationContents.sectionListContinuation;
+    }
+    return null;
+  }
+
+  function findSectionListContents(data) {
+    const sl = findSectionListRenderer(data);
+    return Array.isArray(sl?.contents) ? sl.contents : [];
+  }
+
+  function extractBrowseChips(data) {
+    const sl = findSectionListRenderer(data);
+    const chipCloud =
+      sl?.header?.chipCloudRenderer ||
+      data?.header?.chipCloudRenderer ||
+      null;
+    const rawChips = chipCloud?.chips || [];
+    const chips = [];
+    for (const entry of rawChips) {
+      const c = entry.chipCloudChipRenderer;
+      if (!c) continue;
+      const title = runsText(c.text);
+      const navEp = c.navigationEndpoint?.browseEndpoint || {};
+      const deselectEp = c.onDeselectedCommand?.browseEndpoint || {};
+      if (!title || !navEp.browseId) continue;
+      chips.push({
+        id: navEp.params || title,
+        title,
+        browseId: navEp.browseId,
+        params: navEp.params || null,
+        isSelected: !!c.isSelected,
+        deselectBrowseId: deselectEp.browseId || null,
+        deselectParams: deselectEp.params || null
+      });
+    }
+    return chips;
+  }
+
+  function extractContinuationToken(data) {
+    const sl = findSectionListRenderer(data);
+    if (!sl) return null;
+    const conts = sl.continuations || [];
+    for (const c of conts) {
+      const token =
+        c?.nextContinuationData?.continuation ||
+        c?.reloadContinuationData?.continuation;
+      if (token) return token;
+    }
+    const contents = Array.isArray(sl.contents) ? sl.contents : [];
+    for (const entry of contents) {
+      const token = entry?.continuationItemRenderer?.continuationEndpoint?.continuationCommand?.token;
+      if (token) return token;
+    }
+    return null;
   }
 
   function findLyricsInObject(obj, depth) {
@@ -404,8 +537,11 @@
   Internal.inferKind = inferKind;
   Internal.extractArtistAlbumInfo = extractArtistAlbumInfo;
   Internal.parseTwoRowItem = parseTwoRowItem;
+  Internal.parseNavigationButton = parseNavigationButton;
   Internal.parseResponsiveListItem = parseResponsiveListItem;
   Internal.extractSectionsFromContents = extractSectionsFromContents;
   Internal.findSectionListContents = findSectionListContents;
+  Internal.extractBrowseChips = extractBrowseChips;
+  Internal.extractContinuationToken = extractContinuationToken;
   Internal.findLyricsInObject = findLyricsInObject;
 })();

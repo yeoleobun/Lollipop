@@ -63,6 +63,7 @@ struct FullScreenPlayerView: View {
                     .foregroundStyle(.white.opacity(0.92))
                     .frame(width: 34, height: 34)
                     .liquidGlassCapsule(interactive: true)
+                    .contentShape(Circle())
             }
             .buttonStyle(.plain)
             .keyboardShortcut(.escape, modifiers: [])
@@ -297,6 +298,7 @@ struct FullScreenPlayerView: View {
                 .foregroundStyle(isActive ? Color.black.opacity(0.88) : Color.white.opacity(0.85))
                 .frame(width: 34, height: 30)
                 .background(isActive ? Color.white : Color.clear, in: Capsule())
+                .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .help(tab.title)
