@@ -157,6 +157,12 @@ struct ArtistDetail: Identifiable, Hashable, Codable, Sendable {
     var subscribers: String
     var description: String
     var artworkURL: String
+    var shuffleVideoId: String? = nil
+    var shufflePlaylistId: String? = nil
+    var shuffleParams: String? = nil
+    var radioVideoId: String? = nil
+    var radioPlaylistId: String? = nil
+    var radioParams: String? = nil
     var sections: [MusicSection]
 }
 

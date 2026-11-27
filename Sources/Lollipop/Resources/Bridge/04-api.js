@@ -98,6 +98,37 @@
         header.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails ||
           header.foregroundThumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails
       );
+
+      function extractPlaybackEndpoint(nav) {
+        if (!nav) return { videoId: null, playlistId: null, params: null };
+        const watch = nav.watchEndpoint || null;
+        const watchPl = nav.watchPlaylistEndpoint || null;
+        return {
+          videoId: watch?.videoId || null,
+          playlistId: watch?.playlistId || watchPl?.playlistId || null,
+          params: watch?.params || watchPl?.params || null
+        };
+      }
+
+      const shuffleEp = extractPlaybackEndpoint(
+        header.playButton?.buttonRenderer?.navigationEndpoint
+      );
+      let radioEp = extractPlaybackEndpoint(
+        header.startRadioButton?.buttonRenderer?.navigationEndpoint
+      );
+      if (!radioEp.playlistId && !radioEp.videoId && Array.isArray(header.menu?.menuRenderer?.items)) {
+        for (const mi of header.menu.menuRenderer.items) {
+          const item = mi?.menuNavigationItemRenderer;
+          if (!item) continue;
+          const iconType = item.icon?.iconType || '';
+          const ep = extractPlaybackEndpoint(item.navigationEndpoint);
+          if (ep.playlistId && (iconType.includes('RADIO') || iconType.includes('MIX') || ep.playlistId.startsWith(BROWSE_PREFIX.RADIO))) {
+            radioEp = ep;
+            break;
+          }
+        }
+      }
+
       const contents = findSectionListContents(data);
       const sections = extractSectionsFromContents(contents);
       return JSON.stringify({
@@ -106,6 +137,12 @@
         subscribers,
         description,
         artworkURL,
+        shuffleVideoId: shuffleEp.videoId,
+        shufflePlaylistId: shuffleEp.playlistId,
+        shuffleParams: shuffleEp.params,
+        radioVideoId: radioEp.videoId,
+        radioPlaylistId: radioEp.playlistId,
+        radioParams: radioEp.params,
         sections
       });
     },

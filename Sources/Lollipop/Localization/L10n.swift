@@ -83,6 +83,7 @@ enum L10n {
     static var goToArtist: String { t("Go to Artist", "前往艺人") }
     static var goToAlbum: String { t("Go to Album", "前往专辑") }
     static var startRadio: String { t("Start Radio", "开启电台") }
+    static var artistRadio: String { t("Radio", "合辑") }
     static var playAll: String { t("Play All", "全部播放") }
     static var more: String { t("More", "更多") }
     static var loadMore: String { t("Load More", "加载更多") }

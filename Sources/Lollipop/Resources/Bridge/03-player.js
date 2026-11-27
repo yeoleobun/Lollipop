@@ -430,9 +430,13 @@
             }
           };
 
-      if (app && typeof app.fire === 'function') {
+      if (app) {
         try {
-          app.fire('yt-navigate', { endpoint });
+          if (typeof app.fire === 'function') {
+            app.fire('yt-navigate', { endpoint });
+          } else {
+            app.dispatchEvent(new CustomEvent('yt-navigate', { detail: { endpoint }, bubbles: true, composed: true }));
+          }
           setTimeout(() => {
             const v = getVideoEl();
             if (v && v.paused) v.play().catch(() => {});

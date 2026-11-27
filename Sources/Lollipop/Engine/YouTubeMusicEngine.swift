@@ -159,6 +159,8 @@ final class YouTubeMusicEngine: NSObject, WKNavigationDelegate, WKUIDelegate {
 
     func handleGoogleSignInCompleted() {
         showSignInSheet = false
+        homeSections = []
+        homeContinuation = nil
         loadYouTubeMusic()
     }
 
@@ -174,6 +176,8 @@ final class YouTubeMusicEngine: NSObject, WKNavigationDelegate, WKUIDelegate {
         playerState.accountEmail = ""
         playerState.accountAvatarURL = ""
         userPlaylists = []
+        homeSections = []
+        homeContinuation = nil
         homeChips = []
         selectedHomeChip = nil
         cache.clearAll()
@@ -212,10 +216,16 @@ final class YouTubeMusicEngine: NSObject, WKNavigationDelegate, WKUIDelegate {
             let signedIn = payload[PayloadKey.isSignedIn] as? Bool ?? false
             lastSignedInState = signedIn
             Task {
-                await refreshHome()
+                if homeSections.isEmpty {
+                    await refreshHome()
+                }
                 if signedIn {
-                    await refreshAccountProfile()
-                    await refreshUserPlaylists()
+                    if playerState.accountName.isEmpty {
+                        await refreshAccountProfile()
+                    }
+                    if userPlaylists.isEmpty {
+                        await refreshUserPlaylists()
+                    }
                 }
             }
         default:
@@ -278,8 +288,8 @@ final class YouTubeMusicEngine: NSObject, WKNavigationDelegate, WKUIDelegate {
             nowPlaying.update(with: next)
         }
 
-        // Detect sign-in transition
-        if next.isSignedIn != lastSignedInState {
+        // Detect sign-in transition (only once ytcfg is ready so transient navigations don't clobber state)
+        if next.isReady && next.isSignedIn != lastSignedInState {
             lastSignedInState = next.isSignedIn
             if next.isSignedIn {
                 Task {

@@ -128,14 +128,86 @@ struct ArtistDetailView: View {
                         Text(desc)
                             .font(.system(size: 12.5))
                             .foregroundStyle(.secondary)
-                            .lineLimit(3)
+                            .lineLimit(2)
                             .padding(.top, 2)
                     }
+
+                    heroActionButtons
+                        .padding(.top, 8)
                 }
 
                 Spacer()
             }
             .padding(22)
+        }
+    }
+
+    private var playableSongs: [MusicItem] {
+        guard let detail else { return [] }
+        return detail.sections.flatMap(\.items).filter { $0.videoId != nil }
+    }
+
+    private var canShuffle: Bool {
+        guard let detail else { return false }
+        return !(detail.shufflePlaylistId?.isEmpty ?? true)
+            || !(detail.shuffleVideoId?.isEmpty ?? true)
+            || !playableSongs.isEmpty
+    }
+
+    private var canStartRadio: Bool {
+        guard let detail else { return false }
+        return !(detail.radioPlaylistId?.isEmpty ?? true)
+            || !(detail.radioVideoId?.isEmpty ?? true)
+            || !playableSongs.isEmpty
+    }
+
+    private var heroActionButtons: some View {
+        HStack(spacing: 10) {
+            Button {
+                playArtistShuffle()
+            } label: {
+                Label(L10n.shuffle, systemImage: AppSymbols.shuffle)
+            }
+            .buttonStyle(PrimaryCapsuleButtonStyle(horizontalPadding: 20, verticalPadding: 8))
+            .disabled(!canShuffle)
+
+            Button {
+                playArtistRadio()
+            } label: {
+                Label(L10n.artistRadio, systemImage: AppSymbols.radio)
+            }
+            .buttonStyle(SecondaryCapsuleButtonStyle(horizontalPadding: 18, verticalPadding: 8))
+            .disabled(!canStartRadio)
+        }
+    }
+
+    private func playArtistShuffle() {
+        guard let detail else { return }
+        if (detail.shufflePlaylistId?.isEmpty == false) || (detail.shuffleVideoId?.isEmpty == false) {
+            engine.play(
+                videoId: detail.shuffleVideoId ?? "",
+                playlistId: detail.shufflePlaylistId,
+                params: detail.shuffleParams
+            )
+            return
+        }
+        if let song = playableSongs.randomElement(), let vid = song.videoId {
+            engine.play(videoId: vid, playlistId: song.playlistId)
+        }
+    }
+
+    private func playArtistRadio() {
+        guard let detail else { return }
+        if (detail.radioPlaylistId?.isEmpty == false) || (detail.radioVideoId?.isEmpty == false) {
+            engine.play(
+                videoId: detail.radioVideoId ?? "",
+                playlistId: detail.radioPlaylistId,
+                params: detail.radioParams
+            )
+            return
+        }
+        if let first = playableSongs.first, let vid = first.videoId {
+            engine.startRadio(forVideoId: vid)
         }
     }
 }
